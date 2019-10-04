@@ -1,0 +1,103 @@
+
+L2 gui
+	input: graphic event
+	parameters: layout
+	output: scene (primitive widgets), bitmap
+
+L1 renderer
+	input: scene, bitmap (region),
+	output: bitmap
+
+	
+			Action (event) transaction
+			/ |
+	   model  |
+	/		\ |
+  data	   widget (view)
+
+sync event queue / gui transactions
+	- (lock - part of the ui or model)
+-----
+
+
+Thread 1 (app) eventLoop
+---
+Thread 2 (graphics)
+--
+Thread 3 (action) eventLoop
+---
+Thread 4
+
+timerExpired()
+{
+	if (data[4] > 4) <--- multithreading / world state issue
+
+		data[4] = 3
+		buttons[temorary].setColor(Color.White)
+
+	else
+	
+		buttons.disable(temporary)
+		gui.buttons[temporary].send(Disable)
+		
+}
+
+
+1. select gui item related to data/file system/network
+2. open context menu
+3. request modify operation
+... related  resource has changed the status (or deleted) meanwhile
+
+
+
+widget;main_widget
+	style.margin.type;auto
+	style.layout
+		.row;1
+		.row.col;1
+		
+		.row;2
+	.data;1,2,3,5
+
+
+definition.widget;
+	.name;list_widget
+	.proto;list
+
+	.style; "color:red"
+
+
+widget
+	.id; 
+	.ref.type;list_widget
+	.size;
+	.horizonta
+
+app = GuiApp("config");
+app.initilizeWidgets(frontEndLayer);
+resultCode = app.start();
+return resultCode;
+
+  --- or ----
+
+import std.gui;
+import std.app.config
+
+install
+	readConfig
+
+
+uinittest
+{
+	fileSystem = Env
+	consoleEmu = ConsoleEmu
+	app install
+}
+main()
+{
+	start( Gui( title:"Hello") );
+}
+
+
+ ------
+
