@@ -1,4 +1,4 @@
-module usv3;
+module draft.std.usv;
 
 
 /*
@@ -882,46 +882,6 @@ struct UsvParser
 
         auto levels = prevoiusPathNodeCount - commonPathNodeCount;
         return levels;
-	     
-	    version(old)
-        {
-            if (prevoiusPath.length == 0)
-            {
-                // starting from root
-                return 0;
-            }
-        
-
-            if (currentPath == prevoiusPath)
-            {
-                return 1;
-            }
-
-            // strip the last path section (after the last '.', if exists)
-            auto reversed = retro(currentPath);
-            bool found = reversed.findSkip(".");
-            if (!found)
-            {
-                currentPath = "";
-            }
-            else
-            {
-                currentPath =  reversed.retro;
-            }
-              
-            auto common = commonPrefix(prevoiusPath, currentPath);
-
-            prevoiusPath.findSkip(common);
-            if (prevoiusPath == "")
-            {
-	            return 0;
-	        }
-	        
-            prevoiusPath = prevoiusPath.stripLeft('.');
-	        auto levels = prevoiusPath.count('.') + 1;
-	        return levels;
-
-        } 
     }
     
     unittest
