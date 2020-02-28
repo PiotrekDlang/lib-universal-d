@@ -1,12 +1,6 @@
 module draft.std.usv;
 
 
-/*
- * FIXME change buffer implementation to use an UTF range
- *
- */
-
-
 struct UsvDocument
 {
     // UsvFormat format;
@@ -36,7 +30,7 @@ UsvDocument parseUsv(string text)
 
 struct UsvParser
 {
-    import std.uni;
+    import std.uni : isAlpha, isControl;
     import std.algorithm: findSkip, commonPrefix, stripLeft, count, until;
     import std.string: stripRight;
     import std.range;
@@ -94,10 +88,10 @@ struct UsvParser
 
         this.currentParentNode = &doc.internalRoot;
         
-	    while( !buffer.empty() )
+	    while( !buffer.empty )
 	    {
 		    auto block = parseBlock(buffer);
-		    
+
 		    switch (block.type)
 		    {
 		        case BlockType.Node:
@@ -219,7 +213,8 @@ struct UsvParser
 		    this.currentParentNode = &this.currentParentNode.children[$-1];
 	    }
 	    
-	    // only the last node from the path gets the value
+	    // only the last node from the path gets attributes and the value
+	    this.currentParentNode.attributes = block.attributes;
 	    this.currentParentNode.value = block.value;
 	    
 	    // save the current path for comparison with the subsequent path (line)
@@ -310,7 +305,7 @@ struct UsvParser
 	    Block block;
 
         buffer.findSkip!isSpaceOrTab;
-        
+
         if (buffer.empty)
         {
             block.type = BlockType.Empty;
@@ -374,7 +369,7 @@ struct UsvParser
         auto state = State.ParsingPath;
         
         parsingNodeBlock:
-        while( !buffer.empty() )
+        while( !buffer.empty )
         {
 
 	        switch (state)
@@ -640,7 +635,7 @@ struct UsvParser
         return text;
     }
 
-   
+ //  "\"12\""
     string parseEscapedString(ref Buffer buffer)
     {
         // FIXME Implement checking for wrongly escaped strings
@@ -653,10 +648,14 @@ struct UsvParser
         while(!buffer.empty)
         {
             buffer.popFront;
+
             switch(buffer.front)
             {   
                 case Character.Quote:
-                    buffer.popFront;               
+                    if(!buffer.empty)
+                    {
+                        buffer.popFront;
+                    }
                     break parsingEscapedString;
                 
                 case Character.BackSlash:
@@ -796,7 +795,7 @@ struct UsvParser
     }
     unittest
     {
-        Buffer buffer = Buffer("\"\"\"  \n \ntwo \n \"three\"\"  \"\n\n  \"\"\" \ncanary");   
+        Buffer buffer = Buffer("\"\"\"  \n \ntwo \n \"three\"\"  \"\n\n  \"\"\" \ncanary");
         assert(parseMultilineEscapedString(buffer) == " \ntwo \n \"three\"\"  \"\n");
         assert(buffer.front == 'c');
     }
@@ -958,47 +957,55 @@ struct UsvParser
 
 struct Buffer
 {
-
-    this(string payload, int position)
+    import std.utf: decode, UseReplacementDchar;
+    
+    enum dchar InvalidfCharacter = '\uFFFF';
+    enum dchar ReplacementCharacter = '\uFFFF';
+    
+    this(string payload, size_t position, dchar front)
     {
         payload = payload;
         position = position;
+        front = front;
     }
 
     this(string text)
     {
         payload = text;
-    }	
-
-
-    @property
-	dchar front()
-	{
-	    return payload[position];
-	}
-	
-	
+        if (position  < payload.length)
+        {
+            front = decode!(UseReplacementDchar.yes)(payload, position);
+            empty = false;
+        }
+    }
+    
+    bool empty = true;
+    
+    dchar front = InvalidfCharacter;
+    
 	void popFront()
 	{
-	    position++;
-	}
-	
-    @property
-	bool empty()
-	{
-		return position == payload.length ;
-	}
-	
-	
-	dchar nextChar()
-	{
-	    if (position+1 < payload.length)
+	    if(position >= payload.length)
 	    {
-	        return payload[position+1];
+	        empty = true;
 	    }
 	    else
 	    {
-	        return 0;
+	        front = decode!(UseReplacementDchar.yes)(payload, position);
+	    }
+	}
+
+	dchar nextChar()
+	{
+	    if (position < payload.length)
+	    {
+	        // TODO check if caching is beneficial
+	        size_t index = position;
+	        return decode!(UseReplacementDchar.yes)(payload, index);
+	    }
+	    else
+	    {
+	        return InvalidfCharacter;
 	    }
 	}
 
@@ -1006,12 +1013,36 @@ struct Buffer
 	@property
 	Buffer save()
 	{
-	    return Buffer(payload,position);
+	    return Buffer(payload, position, front);
 	}
 	    
 private:
     string payload;
-	int position = 0;
+	size_t position = 0;
+}
+
+unittest
+{
+    {
+        Buffer buffer = Buffer("ęsóhł");
+        assert(!buffer.empty);
+        assert(buffer.front == '\u0119'); // ę
+        assert(buffer.nextChar == 's');
+        assert(buffer.front == '\u0119');
+        buffer.popFront;
+        assert(buffer.front == 's');
+        buffer.popFront;
+        assert(buffer.front == '\u00F3'); // ó
+        buffer.popFront;
+        assert(buffer.nextChar == '\u0142'); //ł
+        buffer.popFront;
+        assert(buffer.front == '\u0142');
+        assert(buffer.position == 8);
+        assert(!buffer.empty);
+        buffer.popFront;
+        assert(buffer.position == 8);
+        assert(buffer.empty);
+    }
 }
 
 
@@ -1028,7 +1059,7 @@ struct Node
 	string value;	
 	Attribute[] attributes;
 	
-	const auto opIndex(size_t idx)
+	auto opIndex(size_t idx)
 	{
 		return children[idx];
 	}
@@ -1051,8 +1082,6 @@ struct Node
 		}
 		return result;
 	}
-	
-	private:
 
 	Node* parent;
 	Node[] children;
